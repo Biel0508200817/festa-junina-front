@@ -524,6 +524,94 @@ select.cat-filter:hover, select.cat-filter:focus { border-color: var(--amber); }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cardReveal { to { opacity: 1; transform: translateY(0); } }
 
+/* ── LGPD BANNER ── */
+.lgpd-banner {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  z-index: 500;
+  background: var(--ink);
+  color: #FFFBF5;
+  padding: 1.25rem 2rem;
+  display: flex; align-items: center; gap: 1.5rem;
+  flex-wrap: wrap;
+  transform: translateY(100%);
+  transition: transform .5s cubic-bezier(.32,.72,0,1);
+  box-shadow: 0 -8px 48px rgba(26,17,8,.25);
+}
+.lgpd-banner.show { transform: translateY(0); }
+.lgpd-icon { font-size: 36px; flex-shrink: 0; animation: balanco 2.5s ease-in-out infinite; }
+@keyframes balanco { 0%,100%{transform:rotate(-8deg)} 50%{transform:rotate(8deg)} }
+.lgpd-text { flex: 1; min-width: 220px; }
+.lgpd-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px; letter-spacing: .06em; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 8px;
+}
+.lgpd-title .badge-lei {
+  background: var(--amber); color: white;
+  font-size: 9px; font-family: 'DM Sans', sans-serif;
+  font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 100px;
+}
+.lgpd-body { font-size: 13px; line-height: 1.55; color: rgba(255,251,245,.65); font-weight: 300; }
+.lgpd-body strong { color: #FFFBF5; font-weight: 500; }
+.lgpd-body a { color: var(--amber); text-decoration: underline; cursor: pointer; }
+.lgpd-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.btn-lgpd-accept {
+  padding: 10px 24px; background: var(--amber); color: white;
+  border: none; border-radius: 100px;
+  font-family: 'Bebas Neue', sans-serif; font-size: 16px; letter-spacing: .06em;
+  cursor: pointer; transition: background .2s, transform .15s; white-space: nowrap;
+}
+.btn-lgpd-accept:hover { background: var(--amber-dark); transform: translateY(-1px); }
+.btn-lgpd-accept:active { transform: scale(.96); }
+.btn-lgpd-decline {
+  padding: 10px 18px; background: rgba(255,251,245,.08);
+  color: rgba(255,251,245,.5); border: 1px solid rgba(255,251,245,.12);
+  border-radius: 100px; font-family: inherit; font-size: 13px;
+  cursor: pointer; transition: all .2s; white-space: nowrap;
+}
+.btn-lgpd-decline:hover { color: rgba(255,251,245,.8); border-color: rgba(255,251,245,.3); }
+
+/* ── LGPD MODAL ── */
+.lgpd-modal-overlay {
+  position: fixed; inset: 0; background: rgba(26,17,8,.55);
+  z-index: 600; opacity: 0; pointer-events: none;
+  transition: opacity .3s ease;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 1.5rem;
+}
+.lgpd-modal-overlay.show { opacity: 1; pointer-events: all; }
+.lgpd-modal {
+  background: #FFFBF5; border-radius: 28px 28px 24px 24px;
+  width: 100%; max-width: 560px; max-height: 80vh; overflow-y: auto;
+  transform: translateY(40px); transition: transform .4s cubic-bezier(.32,.72,0,1);
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.lgpd-modal-overlay.show .lgpd-modal { transform: translateY(0); }
+.lgpd-modal-header {
+  padding: 2rem 2rem 1.25rem; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: flex-start;
+  position: sticky; top: 0; background: #FFFBF5; z-index: 2;
+  border-radius: 28px 28px 0 0;
+}
+.lgpd-modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: .04em; color: var(--ink); line-height: 1; }
+.lgpd-modal-sub { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 300; }
+.lgpd-modal-body { padding: 1.5rem 2rem 2rem; }
+.lgpd-clause { margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.lgpd-clause:last-child { border-bottom: none; margin-bottom: 0; }
+.lgpd-clause-title {
+  font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 700;
+  color: var(--ink); margin-bottom: .5rem; display: flex; align-items: center; gap: 8px;
+}
+.lgpd-clause-text { font-size: 13.5px; line-height: 1.7; color: var(--muted); font-weight: 300; }
+.lgpd-clause-text em { font-style: normal; font-weight: 500; color: var(--amber-dark); }
+.lgpd-modal-footer {
+  padding: 1.25rem 2rem; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; justify-content: flex-end;
+  position: sticky; bottom: 0; background: #FFFBF5;
+  border-radius: 0 0 24px 24px;
+}
+
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; }
@@ -720,6 +808,105 @@ select.cat-filter:hover, select.cat-filter:focus { border-color: var(--amber); }
   </div>
   <div class="product-grid" id="product-grid"></div>
 </section>
+
+<!-- ── LGPD MODAL ── -->
+<div class="lgpd-modal-overlay" id="lgpd-modal-overlay" onclick="lgpdModalClickOutside(event)">
+  <div class="lgpd-modal" role="dialog" aria-labelledby="lgpd-modal-title">
+    <div class="lgpd-modal-header">
+      <div>
+        <div class="lgpd-modal-title" id="lgpd-modal-title">🪣 Lei Geral do Baú de Dados</div>
+        <div class="lgpd-modal-sub">LGPD Caipira · Versão 1.0 do Arraiá · Vigência: enquanto tiver festa</div>
+      </div>
+      <button class="btn-close-cart" onclick="closeLgpdModal()" aria-label="Fechar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="lgpd-modal-body">
+
+      <div class="lgpd-clause">
+        <div class="lgpd-clause-title">🌽 Art. 1º — Do Guardador de Dados</div>
+        <div class="lgpd-clause-text">
+          Uai, seus dados tão guardado num baú, ó. Um bauzão de madeira de lei, cadeado grosso, 
+          enterrado nos fundo do paiol do servidor. <em>Num sai nem que a égua empurre.</em>
+          Só o Zé do sistema tem a chave, e ele perdeu.
+        </div>
+      </div>
+
+      <div class="lgpd-clause">
+        <div class="lgpd-clause-title">🎆 Art. 2º — Do Uso das Informação</div>
+        <div class="lgpd-clause-text">
+          Nós usa seu nome, e-mail e pedido só pra te entregar a pamonha quentinha na porta.
+          <em>Num vende, num troca, num doa, nem no escambo da feira.</em>
+          Se vier alguém querendo seus dados, a gente faz que nem cachorro bravo: late e assusta.
+        </div>
+      </div>
+
+      <div class="lgpd-clause">
+        <div class="lgpd-clause-title">🪅 Art. 3º — Dos Cookie e Biscoitinho</div>
+        <div class="lgpd-clause-text">
+          Sim, nós tem cookie. Mas é cookie de polvilho, sô, num é aquele rastreador.
+          O único dado que a gente guarda no seu navegador é <em>"esse povo gosta de quentão"</em>.
+          E isso é informação pública.
+        </div>
+      </div>
+
+      <div class="lgpd-clause">
+        <div class="lgpd-clause-title">🎸 Art. 4º — Do Direito do Matuto Digital</div>
+        <div class="lgpd-clause-text">
+          Você pode pedir pra ver seus dados a qualquer hora. Manda um recado no WhatsApp,
+          escreve numa carta com letra de mão, ou grita da janela. A gente responde em até
+          <em>15 dias úteis, ou no próximo arraiá, o que vier primeiro.</em>
+        </div>
+      </div>
+
+      <div class="lgpd-clause">
+        <div class="lgpd-clause-title">🌾 Art. 5º — Da Segurança do Paiol</div>
+        <div class="lgpd-clause-text">
+          Os dados são criptografados com <em>criptografia de ponta a ponta de espiga</em>,
+          protegidos por firewall, antivírus, e pelo Geraldo, o gato do servidor,
+          que late em todo estranho que tenta acessar o banco de dados sem autorização.
+          (Sim, o gato late. É um gato especial.)
+        </div>
+      </div>
+
+      <div class="lgpd-clause">
+        <div class="lgpd-clause-title">🎊 Art. 6º — Da Vigência</div>
+        <div class="lgpd-clause-text">
+          Estes termos valem por toda a duração da festa junina, que por aqui
+          começa em maio e termina <em>"quando acabar o quentão, aí nois vê"</em>.
+          Atualização dos termos será comunicada por foguetório e sanfona ao vivo.
+        </div>
+      </div>
+
+    </div>
+
+    <div class="lgpd-modal-footer">
+      <button class="btn-lgpd-decline" onclick="closeLgpdModal()">Deixa pra lá</button>
+      <button class="btn-lgpd-accept" onclick="acceptLgpd()">Tô Dentro, Uai!</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── LGPD BANNER ── -->
+<div class="lgpd-banner" id="lgpd-banner" role="region" aria-label="Aviso de privacidade">
+  <div class="lgpd-icon">🪣</div>
+  <div class="lgpd-text">
+    <div class="lgpd-title">
+      Seus Dados Tão no Baú
+      <span class="badge-lei">LGPD Caipira</span>
+    </div>
+    <div class="lgpd-body">
+      <strong>Uai, seus dados tão guardado num baú!</strong> 
+      Num vende, num repassa, nem troca por pamonha.
+      <a onclick="openLgpdModal()">Lê os termos, sô →</a>
+    </div>
+  </div>
+  <div class="lgpd-actions">
+    <button class="btn-lgpd-decline" onclick="declineLgpd()">Dispensa</button>
+    <button class="btn-lgpd-accept" onclick="acceptLgpd()">Tô Dentro, Uai! 🤝</button>
+  </div>
+</div>
 
 <!-- ── TOAST ── -->
 <div class="toast" id="toast">
@@ -1229,16 +1416,71 @@ function renderGrid(lista){
 // ── DASHBOARD ──
 function toggleDashboard(){document.getElementById('dashboard-prefeito').classList.toggle('open');}
 
+// ═══════════════════════════════════════════════════════════
+// LGPD CAIPIRA
+// ═══════════════════════════════════════════════════════════
+
+const LGPD_KEY = 'arraia_lgpd_consent';
+
+function lgpdInit() {
+  // Se já deu consentimento, não mostra mais
+  if (localStorage.getItem(LGPD_KEY)) return;
+  // Delay proposital: deixa a página carregar primeiro
+  setTimeout(() => {
+    document.getElementById('lgpd-banner').classList.add('show');
+  }, 1200);
+}
+
+function acceptLgpd() {
+  localStorage.setItem(LGPD_KEY, JSON.stringify({
+    accepted: true,
+    at: new Date().toISOString(),
+    version: '1.0-caipira',
+  }));
+  hideLgpdBanner();
+  closeLgpdModal();
+  showToast('Boa! Seus dados tão no baú. 🪣');
+}
+
+function declineLgpd() {
+  // Fecha o banner mas respeita a decisão — sem guardar cookie,
+  // banner volta na próxima visita (como manda a lei, uai)
+  hideLgpdBanner();
+  showToast('Tudo bem. Num guarda nada, então. 👀');
+}
+
+function hideLgpdBanner() {
+  const b = document.getElementById('lgpd-banner');
+  b.style.transform = 'translateY(100%)';
+  setTimeout(() => b.style.display = 'none', 500);
+}
+
+function openLgpdModal() {
+  document.getElementById('lgpd-modal-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLgpdModal() {
+  document.getElementById('lgpd-modal-overlay').classList.remove('show');
+  // só remove overflow:hidden se o cart drawer também estiver fechado
+  if (!document.getElementById('cart-drawer').classList.contains('open')) {
+    document.body.style.overflow = '';
+  }
+}
+
+function lgpdModalClickOutside(e) {
+  if (e.target === document.getElementById('lgpd-modal-overlay')) closeLgpdModal();
+}
+
 // ── INIT ──
 window.addEventListener('DOMContentLoaded', () => {
-  // conecta o Cart ao render
   Cart.subscribe(renderCart);
-  renderCart(Cart.getState()); // render inicial (vazio)
-
+  renderCart(Cart.getState());
   initCanvas();
   requestAnimationFrame(themeRafLoop);
   trocarCidade();
   carregarProdutos();
+  lgpdInit();
 });
 </script>
 </body>
