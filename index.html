@@ -524,7 +524,38 @@ select.cat-filter:hover, select.cat-filter:focus { border-color: var(--amber); }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cardReveal { to { opacity: 1; transform: translateY(0); } }
 
-/* ── LGPD BANNER ── */
+/* ── DEBUG PANEL ── */
+.debug-panel {
+  position: fixed; bottom: 80px; right: 20px;
+  z-index: 9000;
+  font-family: monospace;
+}
+.debug-toggle {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px;
+  background: #1E1E1E; color: #4EC9B0;
+  border: 1px solid #3E3E3E; border-radius: 8px;
+  font-family: monospace; font-size: 12px; cursor: pointer;
+  margin-left: auto; width: fit-content;
+  transition: background .15s;
+}
+.debug-toggle:hover { background: #2D2D2D; }
+.debug-box {
+  display: none;
+  margin-top: 6px;
+  background: #1E1E1E; color: #D4D4D4;
+  border: 1px solid #3E3E3E; border-radius: 10px;
+  padding: 1rem; font-size: 11.5px; line-height: 1.7;
+  max-width: 360px; max-height: 300px; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+.debug-box.open { display: block; }
+.debug-box .dk  { color: #9CDCFE; }
+.debug-box .dv  { color: #CE9178; }
+.debug-box .dn  { color: #B5CEA8; }
+.debug-box .dt  { color: #4EC9B0; }
+.debug-box h4   { color: #DCDCAA; margin-bottom: .5rem; font-size: 12px; }
+.debug-box hr   { border: none; border-top: 1px solid #3E3E3E; margin: .75rem 0; }
 .lgpd-banner {
   position: fixed; bottom: 0; left: 0; right: 0;
   z-index: 500;
@@ -908,6 +939,14 @@ select.cat-filter:hover, select.cat-filter:focus { border-color: var(--amber); }
   </div>
 </div>
 
+<!-- ── DEBUG PANEL ── -->
+<div class="debug-panel" id="debug-panel">
+  <button class="debug-toggle" onclick="toggleDebug()">⚡ API Debug</button>
+  <div class="debug-box" id="debug-box">
+    <h4>Aguardando carregamento…</h4>
+  </div>
+</div>
+
 <!-- ── TOAST ── -->
 <div class="toast" id="toast">
   <div class="toast-dot"></div>
@@ -915,19 +954,119 @@ select.cat-filter:hover, select.cat-filter:focus { border-color: var(--amber); }
 </div>
 
 <script>
-const VERCEL_API_URL = 'https://festa-junina-jw7q.vercel.app/produtos';
+const API_BASE = 'https://festa-junina-jw7q.vercel.app';
 let PRODUTOS = [];
 
+/**
+ * API PROBE ENGINE
+ * ─────────────────────────────────────────────────────────────
+ * Na primeira chamada, descobre automaticamente qual padrão de
+ * URL a API suporta para filtrar por categoria. Testa os padrões
+ * mais comuns e memoriza o que funcionou.
+ *
+ * Padrões testados (em ordem de prioridade):
+ *   1. GET /produtos?categoria=salgados
+ *   2. GET /produtos?category=salgados
+ *   3. GET /produtos?tipo=salgados
+ *   4. GET /produtos?tag=salgados
+ *   5. GET /produtos/categoria/salgados
+ *   6. GET /produtos/salgados
+ *   FALLBACK: GET /produtos  (filtra no cliente)
+ */
+const ApiProbe = (() => {
+  // Padrões candidatos. {cat} é substituído pelo valor de categoria.
+  const CANDIDATES = [
+    { id: 'qs_categoria',  build: (cat) => `${API_BASE}/produtos?categoria=${cat}` },
+    { id: 'qs_category',   build: (cat) => `${API_BASE}/produtos?category=${cat}` },
+    { id: 'qs_tipo',       build: (cat) => `${API_BASE}/produtos?tipo=${cat}` },
+    { id: 'qs_tag',        build: (cat) => `${API_BASE}/produtos?tag=${cat}` },
+    { id: 'path_categoria',build: (cat) => `${API_BASE}/produtos/categoria/${cat}` },
+    { id: 'path_direct',   build: (cat) => `${API_BASE}/produtos/${cat}` },
+  ];
+
+  const BASE_URL   = `${API_BASE}/produtos`;
+  let _strategy    = null; // padrão confirmado após probe
+  let _probing     = null; // Promise em andamento (evita probe duplo)
+
+  /**
+   * Testa todos os padrões com a categoria "salgados" como referência.
+   * Um padrão é válido se retornar JSON com array não-vazio.
+   */
+  async function probe() {
+    if (_strategy) return _strategy;
+    if (_probing)  return _probing;
+
+    _probing = (async () => {
+      console.group('[Arraiá] Iniciando API probe…');
+
+      for (const c of CANDIDATES) {
+        const url = c.build('salgados');
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+          if (!res.ok) { console.log(`  ✗ ${c.id} → HTTP ${res.status}`); continue; }
+
+          const data = await res.json();
+          const arr  = Array.isArray(data) ? data
+                     : (data.data || data.produtos || data.results || []);
+
+          if (arr.length > 0) {
+            console.log(`  ✓ ${c.id} → ${arr.length} resultados`);
+            console.groupEnd();
+            _strategy = c;
+            return c;
+          }
+          console.log(`  ~ ${c.id} → resposta vazia`);
+        } catch(e) {
+          console.log(`  ✗ ${c.id} → ${e.message}`);
+        }
+      }
+
+      // nenhum padrão retornou resultados filtrados — fallback: filtra no cliente
+      console.log('  → Nenhum padrão de filtro detectado. Usando filtro client-side.');
+      console.groupEnd();
+      _strategy = null;
+      return null;
+    })();
+
+    const result = await _probing;
+    _probing = null;
+    return result;
+  }
+
+  /**
+   * Monta a URL correta para uma categoria.
+   * Se nenhum padrão foi detectado, retorna a URL base (sem filtro).
+   */
+  function buildUrl(cat) {
+    if (!_strategy || cat === 'todos') return BASE_URL;
+    return _strategy.build(cat);
+  }
+
+  /** Retorna o padrão detectado ou null */
+  function getStrategy() { return _strategy; }
+
+  return { probe, buildUrl, getStrategy, BASE_URL };
+})();
+
 // ── Normaliza qualquer valor de categoria para o slug do filtro ──────────────
-// Ex: "Salgado", "SALGADOS", "salgado" → "salgados"
-//     "Doce", "DOCES", "doce"          → "doces"
-//     "Bebida", "BEBIDAS"              → "bebidas"
+// Cobre: "Salgado", "SALGADOS", "salgado", "Salgados", "Doce", "DOCES",
+//        "Bebida", "BEBIDAS", "bebidas", "drink", "food", etc.
 function normalizarCategoria(raw = '') {
-  const s = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  if (/^salgad/.test(s)) return 'salgados';
-  if (/^doc/.test(s))    return 'doces';
-  if (/^bebid/.test(s))  return 'bebidas';
-  return s; // desconhecida: mantém como está
+  const s = String(raw).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .trim();
+  if (/^salgad|^savory|^food|^comida|^sal$/.test(s)) return 'salgados';
+  if (/^doc|^sweet|^sobremesa|^dessert/.test(s))      return 'doces';
+  if (/^bebid|^drink|^bev|^liqu|^refres/.test(s))     return 'bebidas';
+  return 'outros';
+}
+
+// ── Extrai o campo de categoria de um objeto produto, seja qual for o nome ───
+function extrairCategoria(p) {
+  // tenta todos os nomes de campo possíveis que uma API pode usar
+  const raw = p.categoria ?? p.category ?? p.tipo ?? p.type
+           ?? p.tag      ?? p.grupo    ?? p.group ?? p.section ?? '';
+  return normalizarCategoria(raw);
 }
 
 // ── Dados locais de fallback (usados quando o backend está offline) ───────────
@@ -1397,53 +1536,129 @@ function renderSkeletons(){
     </div>`).join('');
 }
 
-async function carregarProdutos(){
-  renderSkeletons();
-
-  let fromApi = false;
-  try {
-    const res  = await fetch(VERCEL_API_URL);
-    const data = await res.json();
-    const raw  = Array.isArray(data) ? data : (data.data || data.produtos || []);
-
-    if (raw.length > 0) {
-      fromApi  = true;
-      PRODUTOS = raw.map((p, i) => ({
-        ...p,
-        id:        p.id ?? p._id ?? p.nome ?? `prod-${i}`,
-        preco:     parseFloat(p.preco || 0),
-        // normaliza categoria independente do que vier da API
-        categoria: normalizarCategoria(p.categoria || p.category || ''),
-      }));
-    }
-  } catch(e) {
-    console.warn('API indisponível, usando fallback local.', e);
-  }
-
-  if (!fromApi) {
-    PRODUTOS = PRODUTOS_FALLBACK;
-    showToast('Backend offline — exibindo cardápio local 🌽');
-  }
-
-  filtrarProdutos();
+// ── helpers de parsing ────────────────────────────────────────
+function parseRaw(raw, offset = 0) {
+  return raw.map((p, i) => ({
+    ...p,
+    id:        p.id ?? p._id ?? p.nome ?? `prod-${offset + i}`,
+    preco:     parseFloat(p.preco || p.price || p.valor || 0),
+    categoria: extrairCategoria(p),
+  }));
 }
 
-function filtrarProdutos(){
-  const termo = document.getElementById('search-input').value.toLowerCase().trim();
-  const cat   = document.getElementById('category-filter').value; // já é "salgados" / "doces" / "bebidas" / "todos"
+function unwrap(data) {
+  return Array.isArray(data) ? data
+       : (data.data || data.produtos || data.results || data.items || []);
+}
 
-  const lista = PRODUTOS.filter(p => {
+// ── estado do filtro atual ────────────────────────────────────
+let _lastCat   = 'todos';
+let _lastTermo = '';
+let _fetchCtrl = null; // AbortController da requisição em andamento
+
+async function carregarProdutos() {
+  renderSkeletons();
+
+  // 1. Descobre qual padrão de filtro a API suporta
+  await ApiProbe.probe();
+  const strategy = ApiProbe.getStrategy();
+
+  // 2. Carrega todos os produtos (sem filtro) para exibição inicial
+  try {
+    const res  = await fetch(ApiProbe.BASE_URL);
+    const data = await res.json();
+    const raw  = unwrap(data);
+
+    if (raw.length === 0) throw new Error('Lista vazia');
+
+    PRODUTOS = parseRaw(raw);
+
+    console.group('[Arraiá] Produtos carregados');
+    console.log('Total:', PRODUTOS.length);
+    console.log('Estratégia de filtro:', strategy?.id ?? 'client-side');
+    console.log('Amostra:', raw[0]);
+    const dist = PRODUTOS.reduce((a,p)=>{a[p.categoria]=(a[p.categoria]||0)+1;return a;},{});
+    console.log('Distribuição:', dist);
+    console.groupEnd();
+
+    renderDebugPanel(raw, PRODUTOS, strategy);
+    renderGrid(PRODUTOS);
+
+  } catch(e) {
+    console.warn('[Arraiá] API indisponível, usando fallback local.', e);
+    PRODUTOS = PRODUTOS_FALLBACK;
+    renderDebugPanel(null, PRODUTOS, null);
+    renderGrid(PRODUTOS);
+    showToast('Backend offline — exibindo cardápio local 🌽');
+  }
+}
+
+/**
+ * filtrarProdutos
+ * ─────────────────────────────────────────────────────────────
+ * Se a API suporta filtro por categoria (strategy detectada):
+ *   → faz GET /produtos?categoria=X no backend
+ *   → busca textual ainda é feita no cliente (mais rápido e
+ *     evita uma requisição por tecla)
+ *
+ * Se não suporta:
+ *   → filtra PRODUTOS[] inteiramente no cliente
+ */
+async function filtrarProdutos() {
+  const termo = document.getElementById('search-input').value.toLowerCase().trim();
+  const cat   = document.getElementById('category-filter').value;
+
+  _lastCat   = cat;
+  _lastTermo = termo;
+
+  const strategy = ApiProbe.getStrategy();
+
+  // ── filtro via backend ────────────────────────────────────
+  if (strategy && cat !== 'todos') {
+    // cancela requisição anterior se ainda estiver em andamento
+    if (_fetchCtrl) _fetchCtrl.abort();
+    _fetchCtrl = new AbortController();
+
+    // spinner leve nos cards
+    document.getElementById('catalog-count').textContent = 'Buscando…';
+
+    try {
+      const url = ApiProbe.buildUrl(cat);
+      const res = await fetch(url, { signal: _fetchCtrl.signal });
+      const data = await res.json();
+      const raw  = unwrap(data);
+      let lista  = parseRaw(raw);
+
+      // busca textual local sobre o resultado do backend
+      if (termo) {
+        lista = lista.filter(p =>
+          (p.nome||'').toLowerCase().includes(termo) ||
+          (p.descricao||'').toLowerCase().includes(termo)
+        );
+      }
+
+      renderGrid(lista);
+    } catch(e) {
+      if (e.name === 'AbortError') return; // requisição cancelada, ignora
+      console.warn('[Arraiá] Erro no filtro backend, degradando para client-side.', e);
+      // degrada graciosamente para filtro local
+      renderGrid(filtroLocal(PRODUTOS, termo, cat));
+    }
+    return;
+  }
+
+  // ── filtro client-side (todos ou sem estratégia) ──────────
+  renderGrid(filtroLocal(PRODUTOS, termo, cat));
+}
+
+function filtroLocal(produtos, termo, cat) {
+  return produtos.filter(p => {
     const matchSearch = !termo
       || (p.nome||'').toLowerCase().includes(termo)
       || (p.descricao||'').toLowerCase().includes(termo);
-
-    // categoria do produto já foi normalizada no load; comparação direta
     const matchCat = cat === 'todos' || p.categoria === cat;
-
     return matchSearch && matchCat;
   });
-
-  renderGrid(lista);
 }
 
 function renderGrid(lista){
@@ -1484,7 +1699,61 @@ function renderGrid(lista){
 }
 
 // ── DASHBOARD ──
-function toggleDashboard(){document.getElementById('dashboard-prefeito').classList.toggle('open');}
+function toggleDashboard(){ document.getElementById('dashboard-prefeito').classList.toggle('open'); }
+
+// ── DEBUG PANEL ──────────────────────────────────────────────
+function toggleDebug() {
+  document.getElementById('debug-box').classList.toggle('open');
+}
+
+function renderDebugPanel(raw, normalizado, strategy) {
+  const box = document.getElementById('debug-box');
+  if (!raw || raw.length === 0) {
+    box.innerHTML = `<h4>⚠️ API offline</h4><span style="color:#F48771">Usando fallback local (${normalizado.length} produtos)</span>`;
+    return;
+  }
+
+  const sample = raw[0];
+  const campos = Object.keys(sample);
+  const dist   = normalizado.reduce((acc, p) => { acc[p.categoria] = (acc[p.categoria]||0)+1; return acc; }, {});
+
+  const campoHtml = campos.map(k => {
+    const v = sample[k];
+    const vStr = typeof v === 'string' ? `<span class="dv">"${v}"</span>`
+               : typeof v === 'number' ? `<span class="dn">${v}</span>`
+               : `<span class="dt">${JSON.stringify(v)}</span>`;
+    return `<div><span class="dk">${k}</span>: ${vStr}</div>`;
+  }).join('');
+
+  const distHtml = Object.entries(dist).map(([k,v]) =>
+    `<div><span class="dk">${k}</span>: <span class="dn">${v} produtos</span></div>`
+  ).join('') || '<span style="color:#F48771">nenhuma categoria reconhecida</span>';
+
+  const catField = ['categoria','category','tipo','type','tag','grupo','group','section']
+    .find(f => sample[f] !== undefined) ?? 'não encontrado';
+
+  const stratHtml = strategy
+    ? `<div><span class="dk">padrão</span>: <span class="dt">${strategy.id}</span></div>
+       <div><span class="dk">url ex.</span>: <span class="dv">"${strategy.build('salgados')}"</span></div>`
+    : `<div style="color:#F48771">client-side (API não suporta filtro por URL)</div>`;
+
+  box.innerHTML = `
+    <h4>📦 Estrutura do produto (1º item)</h4>
+    ${campoHtml}
+    <hr>
+    <h4>🔌 Estratégia de filtro detectada</h4>
+    ${stratHtml}
+    <hr>
+    <h4>🏷️ Campo de categoria</h4>
+    <div><span class="dk">campo</span>: <span class="dv">"${catField}"</span></div>
+    <div><span class="dk">valor raw</span>: <span class="dv">"${sample[catField] ?? ''}"</span></div>
+    <hr>
+    <h4>📊 Distribuição após normalização</h4>
+    ${distHtml}
+    <hr>
+    <div style="color:#6A9955">// ${raw.length} produtos carregados da API</div>
+  `;
+}
 
 // ═══════════════════════════════════════════════════════════
 // LGPD CAIPIRA
