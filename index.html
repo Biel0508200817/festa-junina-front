@@ -918,6 +918,58 @@ select.cat-filter:hover, select.cat-filter:focus { border-color: var(--amber); }
 const VERCEL_API_URL = 'https://festa-junina-jw7q.vercel.app/produtos';
 let PRODUTOS = [];
 
+// ── Normaliza qualquer valor de categoria para o slug do filtro ──────────────
+// Ex: "Salgado", "SALGADOS", "salgado" → "salgados"
+//     "Doce", "DOCES", "doce"          → "doces"
+//     "Bebida", "BEBIDAS"              → "bebidas"
+function normalizarCategoria(raw = '') {
+  const s = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (/^salgad/.test(s)) return 'salgados';
+  if (/^doc/.test(s))    return 'doces';
+  if (/^bebid/.test(s))  return 'bebidas';
+  return s; // desconhecida: mantém como está
+}
+
+// ── Dados locais de fallback (usados quando o backend está offline) ───────────
+const PRODUTOS_FALLBACK = [
+  { id:'f1', nome:'Pamonha de Milho', categoria:'doces',
+    preco:8.00, descricao:'Pamonha cremosa de milho verde envolta em palha, cozida na hora.',
+    imagem:'https://images.unsplash.com/photo-1627308595229-7830a5c18b0c?q=80&w=800&auto=format&fit=crop' },
+  { id:'f2', nome:'Canjica com Amendoim', categoria:'doces',
+    preco:7.50, descricao:'Canjica branquinha cozida no leite com amendoim torrado e canela.',
+    imagem:'https://images.unsplash.com/photo-1604329760661-e71dc83f8f26?q=80&w=800&auto=format&fit=crop' },
+  { id:'f3', nome:'Pé de Moleque', categoria:'doces',
+    preco:5.00, descricao:'Doce crocante de amendoim com rapadura, receita de vó.',
+    imagem:'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=800&auto=format&fit=crop' },
+  { id:'f4', nome:'Bolo de Milho', categoria:'doces',
+    preco:6.00, descricao:'Bolo fofinho de fubá com erva-doce, fatiado na hora.',
+    imagem:'https://images.unsplash.com/photo-1571115177098-24ec42ed204d?q=80&w=800&auto=format&fit=crop' },
+  { id:'f5', nome:'Milho Assado', categoria:'salgados',
+    preco:6.00, descricao:'Milho assado na brasa com manteiga temperada e sal grosso.',
+    imagem:'https://images.unsplash.com/photo-1601000938259-4edd7e52a9e2?q=80&w=800&auto=format&fit=crop' },
+  { id:'f6', nome:'Cural de Milho', categoria:'salgados',
+    preco:7.00, descricao:'Curau cremoso feito de milho fresco com canela polvilhada.',
+    imagem:'https://images.unsplash.com/photo-1490818387583-1baba5e638af?q=80&w=800&auto=format&fit=crop' },
+  { id:'f7', nome:'Espetinho de Frango', categoria:'salgados',
+    preco:9.00, descricao:'Espetinho marinado na grelha com chimichurri caipira.',
+    imagem:'https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba?q=80&w=800&auto=format&fit=crop' },
+  { id:'f8', nome:'Linguiça Caipira', categoria:'salgados',
+    preco:10.00, descricao:'Linguiça artesanal temperada na brasa com mandioca frita.',
+    imagem:'https://images.unsplash.com/photo-1585325701954-f4a68e8b3de1?q=80&w=800&auto=format&fit=crop' },
+  { id:'f9', nome:'Quentão de Vinho', categoria:'bebidas',
+    preco:8.00, descricao:'Quentão feito com vinho tinto, cravo, canela e gengibre. Esquenta a alma.',
+    imagem:'https://images.unsplash.com/photo-1544145945-f90425340c7e?q=80&w=800&auto=format&fit=crop' },
+  { id:'f10', nome:'Quentão de Cachaça', categoria:'bebidas',
+    preco:7.00, descricao:'Cachaça artesanal aquecida com especiarias e mel de abelha.',
+    imagem:'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=800&auto=format&fit=crop' },
+  { id:'f11', nome:'Suco de Cana', categoria:'bebidas',
+    preco:5.00, descricao:'Caldo de cana espremido na hora, geladinho com limão e gengibre.',
+    imagem:'https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?q=80&w=800&auto=format&fit=crop' },
+  { id:'f12', nome:'Arroz Doce', categoria:'doces',
+    preco:6.50, descricao:'Arroz cozido no leite condensado com canela e coco ralado.',
+    imagem:'https://images.unsplash.com/photo-1551024601-bec78aea704b?q=80&w=800&auto=format&fit=crop' },
+];
+
 // ═══════════════════════════════════════════════════════════
 // CART STATE
 // ═══════════════════════════════════════════════════════════
@@ -1347,32 +1399,50 @@ function renderSkeletons(){
 
 async function carregarProdutos(){
   renderSkeletons();
+
+  let fromApi = false;
   try {
-    const res=await fetch(VERCEL_API_URL);
-    const data=await res.json();
-    PRODUTOS=Array.isArray(data)?data:(data.data||data.produtos||[]);
-    // garante que cada produto tem um id estável
-    PRODUTOS=PRODUTOS.map((p,i)=>({ ...p, id: p.id ?? p._id ?? p.nome ?? `prod-${i}` }));
-    filtrarProdutos();
+    const res  = await fetch(VERCEL_API_URL);
+    const data = await res.json();
+    const raw  = Array.isArray(data) ? data : (data.data || data.produtos || []);
+
+    if (raw.length > 0) {
+      fromApi  = true;
+      PRODUTOS = raw.map((p, i) => ({
+        ...p,
+        id:        p.id ?? p._id ?? p.nome ?? `prod-${i}`,
+        preco:     parseFloat(p.preco || 0),
+        // normaliza categoria independente do que vier da API
+        categoria: normalizarCategoria(p.categoria || p.category || ''),
+      }));
+    }
   } catch(e) {
-    console.error(e);
-    document.getElementById('product-grid').innerHTML=`
-      <div class="empty-state">
-        <div class="icon">🔌</div>
-        <h3>Backend Offline</h3>
-        <p>Não foi possível conectar ao servidor. Tente novamente.</p>
-      </div>`;
+    console.warn('API indisponível, usando fallback local.', e);
   }
+
+  if (!fromApi) {
+    PRODUTOS = PRODUTOS_FALLBACK;
+    showToast('Backend offline — exibindo cardápio local 🌽');
+  }
+
+  filtrarProdutos();
 }
 
 function filtrarProdutos(){
-  const termo=document.getElementById('search-input').value.toLowerCase().trim();
-  const cat=document.getElementById('category-filter').value.toLowerCase();
-  const lista=PRODUTOS.filter(p=>{
-    const ms=!termo||(p.nome||'').toLowerCase().includes(termo)||(p.descricao||'').toLowerCase().includes(termo);
-    const mc=cat==='todos'||(p.categoria||'').toLowerCase()===cat;
-    return ms&&mc;
+  const termo = document.getElementById('search-input').value.toLowerCase().trim();
+  const cat   = document.getElementById('category-filter').value; // já é "salgados" / "doces" / "bebidas" / "todos"
+
+  const lista = PRODUTOS.filter(p => {
+    const matchSearch = !termo
+      || (p.nome||'').toLowerCase().includes(termo)
+      || (p.descricao||'').toLowerCase().includes(termo);
+
+    // categoria do produto já foi normalizada no load; comparação direta
+    const matchCat = cat === 'todos' || p.categoria === cat;
+
+    return matchSearch && matchCat;
   });
+
   renderGrid(lista);
 }
 
